@@ -26,7 +26,7 @@ def rnn_model(input_dim, units, activation, output_dim=29):
     input_data = Input(name='the_input', shape=(None, input_dim))
     # Add recurrent layer
     simp_rnn = GRU(units, activation=activation,
-        return_sequences=True, implementation=2, name='rnn')(input_data)
+        return_sequences=True, implementation=2,dropout_W=0.2, dropout_U=0.1, name='rnn')(input_data)
     # TODO: Add batch normalization 
     bn_rnn = BatchNormalization(name='bn_rnn_1d')(simp_rnn)
     # TODO: Add a TimeDistributed(Dense(output_dim)) layer
@@ -98,10 +98,10 @@ def deep_rnn_model(input_dim, units, recur_layers, output_dim=29):
     # Main acoustic input
     input_data = Input(name='the_input', shape=(None, input_dim))
     # TODO: Add recurrent layers, each with batch normalization
-    simp_rnn_1 = GRU(units, activation='relu',return_sequences=True, implementation=2, name='rnn1')(input_data)
+    simp_rnn_1 = GRU(units, activation='relu',return_sequences=True, implementation=2,dropout_W=0.02, dropout_U=0.1, name='rnn1')(input_data)
     # TODO: Add batch normalization 
     bn_rnn_1 = BatchNormalization(name='bn_rnn_1d')(simp_rnn_1)
-    simp_rnn_2 = GRU(units, activation='relu',return_sequences=True, implementation=2, name='rnn2')(bn_rnn_1)
+    simp_rnn_2 = GRU(units, activation='relu',return_sequences=True, implementation=2,dropout_W=0.02, dropout_U=0.1, name='rnn2')(bn_rnn_1)
     # TODO: Add batch normalization 
     bn_rnn_2 = BatchNormalization(name='bn_rnn_2d')(simp_rnn_2)
     # TODO: Add a TimeDistributed(Dense(output_dim)) layer
@@ -129,19 +129,78 @@ def bidirectional_rnn_model(input_dim, units, output_dim=29):
     model.output_length = lambda x: x
     print(model.summary())
     return model
+    
 
-def final_model():
-    """ Build a deep network for speech 
-    """
+def final_model(input_dim, filters, kernel_size, conv_stride,
+
+conv_border_mode, units, output_dim=29):
+
     # Main acoustic input
+
     input_data = Input(name='the_input', shape=(None, input_dim))
-    # TODO: Specify the layers in your network
-    ...
-    # TODO: Add softmax activation layer
-    y_pred = ...
+
+    # Add convolutional layer
+
+    conv_1d = Conv1D(filters, kernel_size,
+
+    strides=conv_stride,
+
+    padding=conv_border_mode,
+
+    activation='relu',
+
+    name='conv1d')(input_data)
+
+    # Add batch normalization
+
+    bn_cnn = BatchNormalization(name='bn_conv_1d')(conv_1d)
+
+    # add initial rnn layr
+
+    bd_rnn_0 = Bidirectional(GRU(units, activation='relu',
+
+    return_sequences=True, implementation=2,
+
+    dropout_W=0.02, dropout_U=0.1,
+
+    name='rnn_layer1'), merge_mode='concat')(bn_cnn)
+
+    bn_rnn_0 = BatchNormalization(name='bn_rnn_layer1')(bd_rnn_0)
+
+    # add second layer
+
+    bd_rnn_1 = Bidirectional(GRU(units, activation='relu',
+
+    return_sequences=True, implementation=2,
+
+    dropout_W=0.02, dropout_U=0.1,
+
+    name='rnn_layer2'), merge_mode='concat')(bn_rnn_0)
+
+    bn_rnn_1 = BatchNormalization(name='bn_rnn_layer2')(bd_rnn_1)
+
+ 
+
+    # Add a TimeDistributed(Dense(output_dim)) layer
+
+    time_dense = TimeDistributed(Dense(output_dim))(bn_rnn_1)
+
+    # Add softmax activation layer
+
+    y_pred = Activation('softmax', name='softmax')(time_dense)
+
     # Specify the model
+
     model = Model(inputs=input_data, outputs=y_pred)
-    # TODO: Specify model.output_length
-    model.output_length = ...
+
+    # Specify model.output_length
+
+    model = Model(inputs=input_data, outputs=y_pred)
+
+    model.output_length = lambda x: cnn_output_length(
+
+    x, kernel_size, conv_border_mode, conv_stride)
+
     print(model.summary())
+
     return model
